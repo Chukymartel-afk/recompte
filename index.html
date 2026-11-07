@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Recompte PROMO</title>
+<style>
+  :root { --vert:#28A55A; --encre:#1d1d1f; --gris:#6e6e73; --fond:#f2f2f4; --blanc:#fff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system, system-ui, sans-serif; background:var(--fond); color:var(--encre); }
+  .cache { display:none !important; }
+  /* NIP */
+  #nip { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px; }
+  #nip h1 { font-size:44px; margin:0; }
+  #nip p { color:var(--gris); font-size:19px; margin:0; text-align:center; }
+  .points { display:flex; gap:18px; margin:10px 0; }
+  .points span { width:20px; height:20px; border-radius:50%; border:2px solid var(--encre); }
+  .points span.plein { background:var(--encre); }
+  .pave { display:grid; grid-template-columns:repeat(3, 84px); gap:16px; }
+  .pave button { height:84px; border-radius:50%; border:2px solid var(--encre); background:var(--blanc); font-size:32px; font-weight:600; color:var(--encre); }
+  .pave button:active { background:#e5e5ea; }
+  .pave .vide { border:none; background:none; }
+  .erreur { color:#d70015 !important; font-weight:600; min-height:24px; }
+  /* Liste */
+  header { position:sticky; top:0; background:var(--fond); padding:16px 16px 10px; z-index:2; }
+  .haut { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .haut .titre { font-size:28px; font-weight:800; }
+  .compte { text-align:right; }
+  .compte b { font-size:34px; }
+  .compte div { color:var(--gris); font-size:15px; }
+  .pilule { border:none; border-radius:999px; padding:10px 16px; font-size:15px; font-weight:600; background:#e3e3e8; color:var(--encre); }
+  #recherche { width:100%; margin-top:12px; height:52px; border-radius:16px; border:none; padding:0 18px; font-size:19px; background:var(--blanc); }
+  ul { list-style:none; margin:0; padding:0 16px 40px; display:grid; gap:10px; }
+  li { background:var(--blanc); border-radius:18px; padding:12px; display:flex; gap:14px; align-items:center; border:2px solid transparent; }
+  li.fait { border-color:var(--vert); }
+  li img, li .sansphoto { width:64px; height:64px; border-radius:12px; object-fit:cover; background:#ececf0; flex:none; }
+  li .nom { font-size:18px; font-weight:600; }
+  li .info { color:var(--gris); font-size:15px; margin-top:3px; }
+  li .total { margin-left:auto; font-size:24px; font-weight:800; color:var(--vert); }
+  /* Fenêtre */
+  #fenetre { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:5; }
+  .carte { background:var(--blanc); border-radius:28px; padding:24px; width:100%; max-width:520px; display:grid; gap:14px; }
+  .carte img { width:100%; max-height:200px; object-fit:contain; border-radius:16px; }
+  .carte h2 { margin:0; font-size:26px; }
+  .carte .aide { color:var(--gris); font-size:17px; }
+  .champs { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .champs label { font-weight:700; font-size:18px; display:grid; gap:6px; }
+  .champs input { height:72px; border-radius:18px; border:2px solid #d2d2d7; font-size:34px; font-weight:800; text-align:center; width:100%; }
+  .champs input:focus { border-color:var(--vert); outline:none; }
+  .boutons { display:flex; gap:12px; }
+  .enregistrer { flex:1; height:64px; border:none; border-radius:999px; background:var(--vert); color:#fff; font-size:21px; font-weight:800; }
+  .enregistrer:disabled { opacity:.5; }
+  .annuler { height:64px; padding:0 24px; border:none; border-radius:999px; background:#e3e3e8; font-size:19px; font-weight:700; }
+</style>
+</head>
+<body>
+<section id="nip">
+  <h1>Recompte</h1>
+  <p>Entre ton NIP. Chaque compte garde ton nom.</p>
+  <div class="points"><span></span><span></span><span></span><span></span></div>
+  <p class="erreur" id="nipErreur"></p>
+  <div class="pave" id="pave"></div>
+</section>
+
+<section id="liste" class="cache">
+  <header>
+    <div class="haut">
+      <div>
+        <div class="titre">Recompte</div>
+        <button class="pilule" id="pasMoi">Ce n’est pas moi</button>
+      </div>
+      <div class="compte"><b id="nombre">0 / 0</b><div id="qui">comptés</div></div>
+    </div>
+    <input id="recherche" type="search" placeholder="Chercher un produit" autocomplete="off">
+  </header>
+  <ul id="produits"></ul>
+</section>
+
+<div id="fenetre" class="cache">
+  <div class="carte">
+    <img id="fPhoto" alt="">
+    <h2 id="fNom"></h2>
+    <div class="aide" id="fAide"></div>
+    <div class="champs">
+      <label>Backstore<input id="fArriere" inputmode="decimal" autocomplete="off"></label>
+      <label>Magasin<input id="fPlancher" inputmode="decimal" autocomplete="off"></label>
+    </div>
+    <p class="erreur" id="fErreur"></p>
+    <div class="boutons">
+      <button class="annuler" id="fAnnuler">Annuler</button>
+      <button class="enregistrer" id="fEnregistrer">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Recompte de l'inventaire, version page web (7 nov. 2026) : même fonction
+// Supabase `recompte` que les iPads (NIP revérifié à chaque appel).
+var URL_FONCTION = 'https://eewfbieadqiagthlsedf.supabase.co/functions/v1/recompte';
+var nip = '', nipTape = '', nom = '', produits = [], courant = null;
+var $ = function (id) { return document.getElementById(id); };
+
+function appeler(corps) {
+  corps.nip = nip;
+  return fetch(URL_FONCTION, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(corps) })
+    .then(function (r) { return r.json(); })
+    .catch(function () { return { error:'Pas de réseau. Réessaie.' }; });
+}
+
+// ── NIP ──
+['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(function (t) {
+  var b = document.createElement('button');
+  if (!t) { b.className = 'vide'; b.disabled = true; }
+  b.textContent = t;
+  b.onclick = function () { touche(t); };
+  $('pave').appendChild(b);
+});
+function dessinerPoints() {
+  var s = document.querySelectorAll('.points span');
+  for (var i = 0; i < 4; i++) s[i].className = i < nipTape.length ? 'plein' : '';
+}
+function touche(t) {
+  if (t === '⌫') nipTape = nipTape.slice(0, -1);
+  else if (nipTape.length < 4) nipTape += t;
+  $('nipErreur').textContent = '';
+  dessinerPoints();
+  if (nipTape.length === 4) {
+    nip = nipTape;
+    appeler({ action:'qui' }).then(function (d) {
+      if (d.error) { nip = ''; nipTape = ''; dessinerPoints(); $('nipErreur').textContent = d.error; return; }
+      nom = d.nom; nipTape = '';
+      $('nip').classList.add('cache'); $('liste').classList.remove('cache');
+      charger();
+    });
+  }
+}
+function retourNip(message) {
+  nip = ''; nipTape = ''; dessinerPoints();
+  $('nipErreur').textContent = message || '';
+  $('fenetre').classList.add('cache'); $('liste').classList.add('cache'); $('nip').classList.remove('cache');
+}
+$('pasMoi').onclick = function () { retourNip(''); };
+
+// ── Liste ──
+function unite(p) {
+  var u = String(p.price_unit || p.unit || '').toLowerCase();
+  if (p.sold_by_weight || /lb|kg|livre/.test(u)) return 'Compter en lb';
+  return 'Compter les unités';
+}
+function sansAccent(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function nombreJoli(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
+function charger() {
+  if (!nip) return;
+  appeler({ action:'liste' }).then(function (d) {
+    if (d.error) { if (d.code === 'nip') retourNip(d.error); return; }
+    produits = d.produits || [];
+    dessiner();
+  });
+}
+function dessiner() {
+  var q = sansAccent($('recherche').value);
+  var faits = produits.filter(function (p) { return p.arriere != null; }).length;
+  $('nombre').textContent = faits + ' / ' + produits.length;
+  $('qui').textContent = 'comptés · ' + nom;
+  var liste = produits.filter(function (p) { return !q || sansAccent(p.nom).indexOf(q) >= 0; });
+  liste.sort(function (a, b) { return (a.arriere != null) - (b.arriere != null); });
+  var ul = $('produits'); ul.innerHTML = '';
+  liste.slice(0, 400).forEach(function (p) {
+    var li = document.createElement('li');
+    var fait = p.arriere != null;
+    if (fait) li.className = 'fait';
+    var img = p.photo ? document.createElement('img') : document.createElement('div');
+    if (p.photo) { img.src = p.photo; img.loading = 'lazy'; } else img.className = 'sansphoto';
+    li.appendChild(img);
+    var t = document.createElement('div');
+    var n = document.createElement('div'); n.className = 'nom'; n.textContent = p.nom; t.appendChild(n);
+    var i = document.createElement('div'); i.className = 'info';
+    i.textContent = fait ? ('Backstore ' + nombreJoli(p.arriere) + ' · Magasin ' + nombreJoli(p.plancher) + ' · par ' + (p.par || '?')) : unite(p);
+    t.appendChild(i); li.appendChild(t);
+    if (fait) { var tot = document.createElement('div'); tot.className = 'total'; tot.textContent = nombreJoli(p.arriere + p.plancher); li.appendChild(tot); }
+    li.onclick = function () { ouvrir(p); };
+    ul.appendChild(li);
+  });
+}
+$('recherche').oninput = dessiner;
+setInterval(charger, 15000);
+
+// ── Saisie ──
+function ouvrir(p) {
+  courant = p;
+  $('fNom').textContent = p.nom;
+  $('fAide').textContent = unite(p) + (p.par ? ' · déjà compté par ' + p.par : '');
+  if (p.photo) { $('fPhoto').src = p.photo; $('fPhoto').classList.remove('cache'); } else $('fPhoto').classList.add('cache');
+  $('fArriere').value = p.arriere != null ? nombreJoli(p.arriere) : '';
+  $('fPlancher').value = p.plancher != null ? nombreJoli(p.plancher) : '';
+  $('fErreur').textContent = '';
+  $('fEnregistrer').disabled = false;
+  $('fenetre').classList.remove('cache');
+  setTimeout(function () { $('fArriere').focus(); }, 50);
+}
+$('fAnnuler').onclick = function () { $('fenetre').classList.add('cache'); };
+function lire(v) { v = String(v || '').trim().replace(',', '.'); if (v === '') return 0; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
+$('fEnregistrer').onclick = function () {
+  var a = lire($('fArriere').value), m = lire($('fPlancher').value);
+  if (a == null || m == null) { $('fErreur').textContent = 'Un chiffre seulement.'; return; }
+  $('fEnregistrer').disabled = true;
+  appeler({ action:'compter', product_id:courant.id, arriere:a, plancher:m }).then(function (d) {
+    $('fEnregistrer').disabled = false;
+    if (d.error) { if (d.code === 'nip') retourNip(d.error); else $('fErreur').textContent = d.error; return; }
+    courant.arriere = a; courant.plancher = m; courant.par = d.par;
+    $('fenetre').classList.add('cache');
+    dessiner();
+  });
+};
+</script>
+</body>
+</html>
