@@ -143,10 +143,14 @@ function retourNip(message) {
 $('pasMoi').onclick = function () { retourNip(''); };
 
 // ── Liste ──
+// L'unité du STOCK (`unit`) : « 3 unités » = des paquets de 3, pas des têtes.
 function unite(p) {
-  var u = String(p.price_unit || p.unit || '').toLowerCase();
-  if (p.sold_by_weight || /lb|kg|livre/.test(u)) return 'Compter en lb';
-  return 'Compter les unités';
+  var u = String(p.unit || '').trim();
+  var b = u.toLowerCase();
+  if (p.sold_by_weight || /^(lb|kg|livre)s?$/.test(b)) return 'Compter en lb';
+  if (!b || /^unit(é|e)s?$/.test(b)) return 'Compter les unités';
+  if (/\d/.test(b)) return 'Compter les PAQUETS de ' + u;
+  return 'Compter en ' + u;
 }
 function sansAccent(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 function nombreJoli(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
