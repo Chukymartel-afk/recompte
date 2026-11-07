@@ -145,9 +145,10 @@ $('pasMoi').onclick = function () { retourNip(''); };
 // ── Liste ──
 // L'unité du STOCK (`unit`) : « 3 unités » = des paquets de 3, pas des têtes.
 function unite(p) {
-  var u = String(p.unit || '').trim();
+  var u = String(p.unit || '').trim().replace(/^\//, '');
   var b = u.toLowerCase();
-  if (p.sold_by_weight || /^(lb|kg|livre)s?$/.test(b)) return 'Compter en lb';
+  if (b === 'kg') return 'Compter en kg';
+  if (p.sold_by_weight || /^(lb|livre)s?$/.test(b)) return 'Compter en lb';
   if (!b || /^unit(é|e)s?$/.test(b)) return 'Compter les unités';
   if (/\d/.test(b)) return 'Compter les PAQUETS de ' + u;
   return 'Compter en ' + u;
