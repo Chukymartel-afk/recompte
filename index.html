@@ -56,6 +56,9 @@
   .boutons { display:flex; gap:12px; }
   .enregistrer { flex:1; height:64px; border:none; border-radius:999px; background:var(--vert); color:#fff; font-size:21px; font-weight:800; }
   .enregistrer:disabled { opacity:.5; }
+  .deja { background:#eaf6ef; border-radius:18px; padding:14px 16px; font-size:19px; }
+  .deja b { font-size:28px; }
+  .lien { background:none; border:none; color:var(--gris); font-size:17px; font-weight:600; text-decoration:underline; padding:6px; justify-self:center; }
   .annuler { height:64px; padding:0 24px; border:none; border-radius:999px; background:#e3e3e8; font-size:19px; font-weight:700; }
 </style>
 </head>
@@ -95,9 +98,11 @@
     <img id="fPhoto" alt="">
     <h2 id="fNom"></h2>
     <div class="aide" id="fAide"></div>
+    <div class="deja cache" id="fDeja"></div>
     <div class="champs">
       <label><span id="fZone">Quantité</span><input id="fQte" inputmode="decimal" autocomplete="off"></label>
     </div>
+    <button class="lien cache" id="fMode">Corriger le total</button>
     <p class="erreur" id="fErreur"></p>
     <div class="boutons">
       <button class="annuler" id="fAnnuler">Annuler</button>
@@ -110,7 +115,7 @@
 // Recompte de l'inventaire, version page web (7 nov. 2026) : même fonction
 // Supabase `recompte` que les iPads (NIP revérifié à chaque appel).
 var URL_FONCTION = 'https://eewfbieadqiagthlsedf.supabase.co/functions/v1/recompte';
-var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null;
+var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null, ajouter = false;
 var NOM_ZONE = { backstore:'Backstore', magasin:'Magasin' };
 var $ = function (id) { return document.getElementById(id); };
 
@@ -198,7 +203,8 @@ function dessiner() {
   $('nombre').textContent = faits + ' / ' + produits.length;
   $('qui').textContent = 'comptés en ' + NOM_ZONE[zone] + ' · ' + nom;
   var liste = produits.filter(function (p) { return !q || sansAccent(p.nom).indexOf(q) >= 0; });
-  liste.sort(function (a, b) { return (a[zone] != null) - (b[zone] != null); });
+  // Pendant une recherche, rien ne bouge ni ne disparaît : l'ordre alphabétique seulement.
+  if (!q) liste.sort(function (a, b) { return (a[zone] != null) - (b[zone] != null); });
   var ul = $('produits'); ul.innerHTML = '';
   liste.slice(0, 400).forEach(function (p) {
     var li = document.createElement('li');
@@ -221,28 +227,48 @@ $('recherche').oninput = dessiner;
 setInterval(charger, 15000);
 
 // ── Saisie ──
-function ouvrir(p) {
-  courant = p;
-  $('fNom').textContent = p.nom;
-  $('fZone').textContent = NOM_ZONE[zone];
-  $('fAide').textContent = unite(p) + (p[zone + '_par'] ? ' · déjà compté par ' + p[zone + '_par'] : '');
-  if (p.photo) { $('fPhoto').src = p.photo; $('fPhoto').classList.remove('cache'); } else $('fPhoto').classList.add('cache');
-  $('fQte').value = p[zone] != null ? nombreJoli(p[zone]) : '';
+// Déjà compté : on AJOUTE (une boîte retrouvée) ; « Corriger le total » remplace.
+function mode(ajout) {
+  ajouter = ajout;
+  var p = courant, deja = p[zone] != null;
+  $('fZone').textContent = ajout ? 'Ajouter combien ?' : (deja ? 'Le bon total en ' + NOM_ZONE[zone] : NOM_ZONE[zone]);
+  $('fEnregistrer').textContent = ajout ? 'Ajouter' : 'Enregistrer';
+  $('fQte').value = ajout || !deja ? '' : nombreJoli(p[zone]);
+  $('fMode').textContent = ajout ? 'Corriger le total' : 'Ajouter plutôt';
+  $('fMode').classList.toggle('cache', !deja);
   $('fErreur').textContent = '';
-  $('fEnregistrer').disabled = false;
-  $('fenetre').classList.remove('cache');
   setTimeout(function () { $('fQte').focus(); }, 50);
 }
+function ouvrir(p) {
+  courant = p;
+  var deja = p[zone] != null;
+  $('fNom').textContent = p.nom;
+  $('fAide').textContent = unite(p);
+  if (p.photo) { $('fPhoto').src = p.photo; $('fPhoto').classList.remove('cache'); } else $('fPhoto').classList.add('cache');
+  $('fDeja').innerHTML = '';
+  if (deja) {
+    var t = document.createElement('div');
+    t.appendChild(document.createTextNode('Déjà compté en ' + NOM_ZONE[zone] + ' : '));
+    var b = document.createElement('b'); b.textContent = nombreJoli(p[zone]); t.appendChild(b);
+    t.appendChild(document.createTextNode(' · par ' + (p[zone + '_par'] || '?')));
+    $('fDeja').appendChild(t);
+  }
+  $('fDeja').classList.toggle('cache', !deja);
+  $('fEnregistrer').disabled = false;
+  $('fenetre').classList.remove('cache');
+  mode(deja);
+}
+$('fMode').onclick = function () { mode(!ajouter); };
 $('fAnnuler').onclick = function () { $('fenetre').classList.add('cache'); };
-function lire(v) { v = String(v || '').trim().replace(',', '.'); if (v === '') return 0; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
+function lire(v) { v = String(v || '').trim().replace(',', '.'); if (v === '') return ajouter ? null : 0; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
 $('fEnregistrer').onclick = function () {
   var q = lire($('fQte').value);
   if (q == null) { $('fErreur').textContent = 'Un chiffre seulement.'; return; }
   $('fEnregistrer').disabled = true;
-  appeler({ action:'compter', product_id:courant.id, zone:zone, quantite:q }).then(function (d) {
+  appeler({ action:'compter', product_id:courant.id, zone:zone, quantite:q, ajouter:ajouter }).then(function (d) {
     $('fEnregistrer').disabled = false;
     if (d.error) { if (d.code === 'nip') retourNip(d.error); else $('fErreur').textContent = d.error; return; }
-    courant[zone] = q; courant[zone + '_par'] = d.par;
+    courant[zone] = d.quantite != null ? Number(d.quantite) : q; courant[zone + '_par'] = d.par;
     $('fenetre').classList.add('cache');
     dessiner();
   });
