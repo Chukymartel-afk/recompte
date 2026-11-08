@@ -59,6 +59,10 @@
   .deja { background:#eaf6ef; border-radius:18px; padding:14px 16px; font-size:19px; }
   .deja b { font-size:28px; }
   .lien { background:none; border:none; color:var(--gris); font-size:17px; font-weight:600; text-decoration:underline; padding:6px; justify-self:center; }
+  .choixUnite { display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#ececf0; border-radius:16px; padding:5px; }
+  .choixUnite button { height:52px; border:none; border-radius:12px; background:none; font-size:18px; font-weight:700; color:var(--gris); }
+  .choixUnite button.pris { background:var(--blanc); color:var(--encre); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .calcul { color:var(--vert); font-size:19px; font-weight:700; min-height:24px; }
   .annuler { height:64px; padding:0 24px; border:none; border-radius:999px; background:#e3e3e8; font-size:19px; font-weight:700; }
 </style>
 </head>
@@ -99,9 +103,11 @@
     <h2 id="fNom"></h2>
     <div class="aide" id="fAide"></div>
     <div class="deja cache" id="fDeja"></div>
+    <div class="choixUnite cache" id="fUnites"><button id="fCaisses">Caisses</button><button id="fUnitesStock">Unités</button></div>
     <div class="champs">
       <label><span id="fZone">Quantité</span><input id="fQte" inputmode="decimal" autocomplete="off"></label>
     </div>
+    <div class="calcul" id="fCalcul"></div>
     <button class="lien cache" id="fMode">Corriger le total</button>
     <p class="erreur" id="fErreur"></p>
     <div class="boutons">
@@ -115,7 +121,7 @@
 // Recompte de l'inventaire, version page web (7 nov. 2026) : même fonction
 // Supabase `recompte` que les iPads (NIP revérifié à chaque appel).
 var URL_FONCTION = 'https://eewfbieadqiagthlsedf.supabase.co/functions/v1/recompte';
-var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null, ajouter = false;
+var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null, ajouter = false, enCaisses = false;
 var NOM_ZONE = { backstore:'Backstore', magasin:'Magasin' };
 var $ = function (id) { return document.getElementById(id); };
 
@@ -187,6 +193,26 @@ function unite(p) {
   if (/\d/.test(b)) return 'Compter les PAQUETS de ' + u;
   return 'Compter en ' + u;
 }
+// Le nom court de l'unité du stock : « paquets de 3 unités », « lb », « unités ».
+function nomUnite(p) {
+  var t = unite(p);
+  return t.replace(/^Compter (en |les )?/, '').replace('PAQUETS', 'paquets');
+}
+// Hugo compte le backstore en CAISSES : « 4,75 » = 4 caisses et 3/4, converti
+// en unités du stock (1 caisse d'ail = 50 paquets de 3).
+function choisirUnite(caisses) {
+  enCaisses = caisses && !!courant.par_caisse;
+  $('fCaisses').classList.toggle('pris', enCaisses);
+  $('fUnitesStock').classList.toggle('pris', !enCaisses);
+  calculer();
+}
+function calculer() {
+  var p = courant, v = lire($('fQte').value);
+  if (!p || !p.par_caisse) { $('fCalcul').textContent = ''; return; }
+  if (!enCaisses) { $('fCalcul').textContent = '1 caisse = ' + nombreJoli(p.par_caisse) + ' ' + nomUnite(p); return; }
+  $('fCalcul').textContent = (v == null || $('fQte').value.trim() === '' ? '1 caisse = ' + nombreJoli(p.par_caisse) + ' ' + nomUnite(p)
+    : '= ' + nombreJoli(v * p.par_caisse) + ' ' + nomUnite(p) + '  (1 caisse = ' + nombreJoli(p.par_caisse) + ')');
+}
 function sansAccent(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 function nombreJoli(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
 function charger() {
@@ -236,6 +262,10 @@ function mode(ajout) {
   $('fQte').value = ajout || !deja ? '' : nombreJoli(p[zone]);
   $('fMode').textContent = ajout ? 'Corriger le total' : 'Ajouter plutôt';
   $('fMode').classList.toggle('cache', !deja);
+  $('fUnites').classList.toggle('cache', !p.par_caisse);
+  $('fUnitesStock').textContent = nomUnite(p).replace(/^./, function (c) { return c.toUpperCase(); });
+  if (!ajout && deja) enCaisses = false;
+  choisirUnite(enCaisses);
   $('fErreur').textContent = '';
   setTimeout(function () { $('fQte').focus(); }, 50);
 }
@@ -256,14 +286,19 @@ function ouvrir(p) {
   $('fDeja').classList.toggle('cache', !deja);
   $('fEnregistrer').disabled = false;
   $('fenetre').classList.remove('cache');
+  enCaisses = zone === 'backstore' && !!p.par_caisse;
   mode(deja);
 }
 $('fMode').onclick = function () { mode(!ajouter); };
+$('fCaisses').onclick = function () { choisirUnite(true); };
+$('fUnitesStock').onclick = function () { choisirUnite(false); };
+$('fQte').oninput = calculer;
 $('fAnnuler').onclick = function () { $('fenetre').classList.add('cache'); };
 function lire(v) { v = String(v || '').trim().replace(',', '.'); if (v === '') return ajouter ? null : 0; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
 $('fEnregistrer').onclick = function () {
   var q = lire($('fQte').value);
   if (q == null) { $('fErreur').textContent = 'Un chiffre seulement.'; return; }
+  if (enCaisses && courant.par_caisse) q = Math.round(q * courant.par_caisse * 1000) / 1000;
   $('fEnregistrer').disabled = true;
   appeler({ action:'compter', product_id:courant.id, zone:zone, quantite:q, ajouter:ajouter }).then(function (d) {
     $('fEnregistrer').disabled = false;
