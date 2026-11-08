@@ -42,6 +42,7 @@
   li img, li .sansphoto { width:64px; height:64px; border-radius:12px; object-fit:cover; background:#ececf0; flex:none; }
   li .nom { font-size:18px; font-weight:600; }
   li .info { color:var(--gris); font-size:15px; margin-top:3px; }
+  li .info.rouge { color:#D70015; font-weight:700; }
   li .total { margin-left:auto; font-size:24px; font-weight:800; color:var(--vert); }
   /* Fenêtre */
   #fenetre { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:5; }
@@ -123,6 +124,14 @@
 var URL_FONCTION = 'https://eewfbieadqiagthlsedf.supabase.co/functions/v1/recompte';
 var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null, ajouter = false, enCaisses = false;
 var NOM_ZONE = { backstore:'Backstore', magasin:'Magasin' };
+// 8 nov. — comptes du backstore gonflés (des unités tapées en mode « Caisses ») : à recompter en UNITÉS.
+var A_RECOMPTER = {
+  'b21f343e-790f-4e19-a80a-46ab62b29843':1, '494ba2b8-1f40-4a93-9475-ae43855dcb13':1, '86578a5d-1c3b-4d4b-b39a-4d4e03ece236':1,
+  '6ed2a92d-2dc3-42f2-9c34-74de30fa9b1c':1, '8db8b1ab-239b-4a62-a1d9-44ffcfeb8d69':1, '103a955d-1d70-4b1e-84e0-e5022c198773':1,
+  '6c360f61-9ee9-487e-bec1-96e5ef32002f':1, '3dad7bdc-581a-49c6-b704-303cb1391e98':1, 'a9f91562-fa75-4fe1-a87e-07bbfa1b8eb3':1,
+  '5df73e63-bb39-42de-aa5d-4f1d58534661':1, 'b1030ff6-94a4-46b8-9033-c4ff44b68600':1, 'd043c3aa-4f93-474f-b00a-bdde5eecf2ac':1
+};
+function aRecompter(p) { return zone === 'backstore' && !!A_RECOMPTER[p.id]; }
 var $ = function (id) { return document.getElementById(id); };
 
 function appeler(corps) {
@@ -230,7 +239,7 @@ function dessiner() {
   $('qui').textContent = 'comptés en ' + NOM_ZONE[zone] + ' · ' + nom;
   var liste = produits.filter(function (p) { return !q || sansAccent(p.nom).indexOf(q) >= 0; });
   // Pendant une recherche, rien ne bouge ni ne disparaît : l'ordre alphabétique seulement.
-  if (!q) liste.sort(function (a, b) { return (a[zone] != null) - (b[zone] != null); });
+  if (!q) liste.sort(function (a, b) { return (aRecompter(b) - aRecompter(a)) || ((a[zone] != null) - (b[zone] != null)); });
   var ul = $('produits'); ul.innerHTML = '';
   liste.slice(0, 400).forEach(function (p) {
     var li = document.createElement('li');
@@ -243,6 +252,7 @@ function dessiner() {
     var n = document.createElement('div'); n.className = 'nom'; n.textContent = p.nom; t.appendChild(n);
     var i = document.createElement('div'); i.className = 'info';
     i.textContent = fait ? (unite(p) + ' · par ' + (p[zone + '_par'] || '?')) : unite(p);
+    if (aRecompter(p)) { i.className = 'info rouge'; i.textContent = 'À recompter · ' + unite(p) + ' · pas en caisses'; }
     t.appendChild(i); li.appendChild(t);
     if (fait) { var tot = document.createElement('div'); tot.className = 'total'; tot.textContent = nombreJoli(p[zone]); li.appendChild(tot); }
     li.onclick = function () { ouvrir(p); };
@@ -259,7 +269,7 @@ function mode(ajout) {
   var p = courant, deja = p[zone] != null;
   $('fZone').textContent = ajout ? 'Ajouter combien ?' : (deja ? 'Le bon total en ' + NOM_ZONE[zone] : NOM_ZONE[zone]);
   $('fEnregistrer').textContent = ajout ? 'Ajouter' : 'Enregistrer';
-  $('fQte').value = ajout || !deja ? '' : nombreJoli(p[zone]);
+  $('fQte').value = ajout || !deja || aRecompter(p) ? '' : nombreJoli(p[zone]);
   $('fMode').textContent = ajout ? 'Corriger le total' : 'Ajouter plutôt';
   $('fMode').classList.toggle('cache', !deja);
   $('fUnites').classList.toggle('cache', !p.par_caisse);
@@ -286,8 +296,8 @@ function ouvrir(p) {
   $('fDeja').classList.toggle('cache', !deja);
   $('fEnregistrer').disabled = false;
   $('fenetre').classList.remove('cache');
-  enCaisses = zone === 'backstore' && !!p.par_caisse;
-  mode(deja);
+  enCaisses = false;
+  mode(deja && !aRecompter(p));
 }
 $('fMode').onclick = function () { mode(!ajouter); };
 $('fCaisses').onclick = function () { choisirUnite(true); };
