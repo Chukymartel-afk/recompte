@@ -22,6 +22,11 @@
   .pave button:active { background:#e5e5ea; }
   .pave .vide { border:none; background:none; }
   .erreur { color:#d70015 !important; font-weight:600; min-height:24px; }
+  /* Zone */
+  #zone { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px; }
+  #zone h1 { font-size:36px; margin:0; text-align:center; }
+  .grosbouton { width:100%; max-width:520px; height:130px; border:none; border-radius:28px; font-size:38px; font-weight:800; color:#fff; }
+  .back { background:#1d1d1f; } .mag { background:var(--vert); }
   /* Liste */
   header { position:sticky; top:0; background:var(--fond); padding:16px 16px 10px; z-index:2; }
   .haut { display:flex; justify-content:space-between; align-items:center; gap:12px; }
@@ -44,9 +49,9 @@
   .carte img { width:100%; max-height:200px; object-fit:contain; border-radius:16px; }
   .carte h2 { margin:0; font-size:26px; }
   .carte .aide { color:var(--gris); font-size:17px; }
-  .champs { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .champs { display:grid; grid-template-columns:1fr; gap:12px; }
   .champs label { font-weight:700; font-size:18px; display:grid; gap:6px; }
-  .champs input { height:72px; border-radius:18px; border:2px solid #d2d2d7; font-size:34px; font-weight:800; text-align:center; width:100%; }
+  .champs input { height:90px; border-radius:18px; border:2px solid #d2d2d7; font-size:34px; font-weight:800; text-align:center; width:100%; }
   .champs input:focus { border-color:var(--vert); outline:none; }
   .boutons { display:flex; gap:12px; }
   .enregistrer { flex:1; height:64px; border:none; border-radius:999px; background:var(--vert); color:#fff; font-size:21px; font-weight:800; }
@@ -63,11 +68,19 @@
   <div class="pave" id="pave"></div>
 </section>
 
+<section id="zone" class="cache">
+  <h1 id="zoneTitre">Tu comptes où ?</h1>
+  <button class="grosbouton back" id="choixBack">Backstore</button>
+  <button class="grosbouton mag" id="choixMag">Magasin</button>
+  <button class="pilule" id="pasMoi2">Ce n’est pas moi</button>
+</section>
+
 <section id="liste" class="cache">
   <header>
     <div class="haut">
       <div>
-        <div class="titre">Recompte</div>
+        <div class="titre" id="titreZone">Recompte</div>
+        <button class="pilule" id="changerZone">Changer de zone</button>
         <button class="pilule" id="pasMoi">Ce n’est pas moi</button>
       </div>
       <div class="compte"><b id="nombre">0 / 0</b><div id="qui">comptés</div></div>
@@ -83,8 +96,7 @@
     <h2 id="fNom"></h2>
     <div class="aide" id="fAide"></div>
     <div class="champs">
-      <label>Backstore<input id="fArriere" inputmode="decimal" autocomplete="off"></label>
-      <label>Magasin<input id="fPlancher" inputmode="decimal" autocomplete="off"></label>
+      <label><span id="fZone">Quantité</span><input id="fQte" inputmode="decimal" autocomplete="off"></label>
     </div>
     <p class="erreur" id="fErreur"></p>
     <div class="boutons">
@@ -98,7 +110,8 @@
 // Recompte de l'inventaire, version page web (7 nov. 2026) : même fonction
 // Supabase `recompte` que les iPads (NIP revérifié à chaque appel).
 var URL_FONCTION = 'https://eewfbieadqiagthlsedf.supabase.co/functions/v1/recompte';
-var nip = '', nipTape = '', nom = '', produits = [], courant = null;
+var nip = '', nipTape = '', nom = '', produits = [], courant = null, zone = null;
+var NOM_ZONE = { backstore:'Backstore', magasin:'Magasin' };
 var $ = function (id) { return document.getElementById(id); };
 
 function appeler(corps) {
@@ -130,17 +143,33 @@ function touche(t) {
     appeler({ action:'qui' }).then(function (d) {
       if (d.error) { nip = ''; nipTape = ''; dessinerPoints(); $('nipErreur').textContent = d.error; return; }
       nom = d.nom; nipTape = '';
-      $('nip').classList.add('cache'); $('liste').classList.remove('cache');
-      charger();
+      $('nip').classList.add('cache'); montrerZones();
     });
   }
 }
 function retourNip(message) {
   nip = ''; nipTape = ''; dessinerPoints();
   $('nipErreur').textContent = message || '';
-  $('fenetre').classList.add('cache'); $('liste').classList.add('cache'); $('nip').classList.remove('cache');
+  zone = null;
+  $('fenetre').classList.add('cache'); $('liste').classList.add('cache'); $('zone').classList.add('cache'); $('nip').classList.remove('cache');
 }
 $('pasMoi').onclick = function () { retourNip(''); };
+$('pasMoi2').onclick = function () { retourNip(''); };
+
+// ── Zone : chacun compte UNE zone (un gars au backstore, les autres au magasin) ──
+function montrerZones() {
+  $('zoneTitre').textContent = nom + ', tu comptes où ?';
+  $('liste').classList.add('cache'); $('zone').classList.remove('cache');
+}
+function choisir(z) {
+  zone = z;
+  $('titreZone').textContent = NOM_ZONE[z];
+  $('zone').classList.add('cache'); $('liste').classList.remove('cache');
+  charger();
+}
+$('choixBack').onclick = function () { choisir('backstore'); };
+$('choixMag').onclick = function () { choisir('magasin'); };
+$('changerZone').onclick = montrerZones;
 
 // ── Liste ──
 // L'unité du STOCK (`unit`) : « 3 unités » = des paquets de 3, pas des têtes.
@@ -156,7 +185,7 @@ function unite(p) {
 function sansAccent(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 function nombreJoli(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
 function charger() {
-  if (!nip) return;
+  if (!nip || !zone) return;
   appeler({ action:'liste' }).then(function (d) {
     if (d.error) { if (d.code === 'nip') retourNip(d.error); return; }
     produits = d.produits || [];
@@ -165,15 +194,15 @@ function charger() {
 }
 function dessiner() {
   var q = sansAccent($('recherche').value);
-  var faits = produits.filter(function (p) { return p.arriere != null; }).length;
+  var faits = produits.filter(function (p) { return p[zone] != null; }).length;
   $('nombre').textContent = faits + ' / ' + produits.length;
-  $('qui').textContent = 'comptés · ' + nom;
+  $('qui').textContent = 'comptés en ' + NOM_ZONE[zone] + ' · ' + nom;
   var liste = produits.filter(function (p) { return !q || sansAccent(p.nom).indexOf(q) >= 0; });
-  liste.sort(function (a, b) { return (a.arriere != null) - (b.arriere != null); });
+  liste.sort(function (a, b) { return (a[zone] != null) - (b[zone] != null); });
   var ul = $('produits'); ul.innerHTML = '';
   liste.slice(0, 400).forEach(function (p) {
     var li = document.createElement('li');
-    var fait = p.arriere != null;
+    var fait = p[zone] != null;
     if (fait) li.className = 'fait';
     var img = p.photo ? document.createElement('img') : document.createElement('div');
     if (p.photo) { img.src = p.photo; img.loading = 'lazy'; } else img.className = 'sansphoto';
@@ -181,9 +210,9 @@ function dessiner() {
     var t = document.createElement('div');
     var n = document.createElement('div'); n.className = 'nom'; n.textContent = p.nom; t.appendChild(n);
     var i = document.createElement('div'); i.className = 'info';
-    i.textContent = fait ? ('Backstore ' + nombreJoli(p.arriere) + ' · Magasin ' + nombreJoli(p.plancher) + ' · par ' + (p.par || '?')) : unite(p);
+    i.textContent = fait ? (unite(p) + ' · par ' + (p[zone + '_par'] || '?')) : unite(p);
     t.appendChild(i); li.appendChild(t);
-    if (fait) { var tot = document.createElement('div'); tot.className = 'total'; tot.textContent = nombreJoli(p.arriere + p.plancher); li.appendChild(tot); }
+    if (fait) { var tot = document.createElement('div'); tot.className = 'total'; tot.textContent = nombreJoli(p[zone]); li.appendChild(tot); }
     li.onclick = function () { ouvrir(p); };
     ul.appendChild(li);
   });
@@ -195,25 +224,25 @@ setInterval(charger, 15000);
 function ouvrir(p) {
   courant = p;
   $('fNom').textContent = p.nom;
-  $('fAide').textContent = unite(p) + (p.par ? ' · déjà compté par ' + p.par : '');
+  $('fZone').textContent = NOM_ZONE[zone];
+  $('fAide').textContent = unite(p) + (p[zone + '_par'] ? ' · déjà compté par ' + p[zone + '_par'] : '');
   if (p.photo) { $('fPhoto').src = p.photo; $('fPhoto').classList.remove('cache'); } else $('fPhoto').classList.add('cache');
-  $('fArriere').value = p.arriere != null ? nombreJoli(p.arriere) : '';
-  $('fPlancher').value = p.plancher != null ? nombreJoli(p.plancher) : '';
+  $('fQte').value = p[zone] != null ? nombreJoli(p[zone]) : '';
   $('fErreur').textContent = '';
   $('fEnregistrer').disabled = false;
   $('fenetre').classList.remove('cache');
-  setTimeout(function () { $('fArriere').focus(); }, 50);
+  setTimeout(function () { $('fQte').focus(); }, 50);
 }
 $('fAnnuler').onclick = function () { $('fenetre').classList.add('cache'); };
 function lire(v) { v = String(v || '').trim().replace(',', '.'); if (v === '') return 0; var n = Number(v); return isFinite(n) && n >= 0 ? n : null; }
 $('fEnregistrer').onclick = function () {
-  var a = lire($('fArriere').value), m = lire($('fPlancher').value);
-  if (a == null || m == null) { $('fErreur').textContent = 'Un chiffre seulement.'; return; }
+  var q = lire($('fQte').value);
+  if (q == null) { $('fErreur').textContent = 'Un chiffre seulement.'; return; }
   $('fEnregistrer').disabled = true;
-  appeler({ action:'compter', product_id:courant.id, arriere:a, plancher:m }).then(function (d) {
+  appeler({ action:'compter', product_id:courant.id, zone:zone, quantite:q }).then(function (d) {
     $('fEnregistrer').disabled = false;
     if (d.error) { if (d.code === 'nip') retourNip(d.error); else $('fErreur').textContent = d.error; return; }
-    courant.arriere = a; courant.plancher = m; courant.par = d.par;
+    courant[zone] = q; courant[zone + '_par'] = d.par;
     $('fenetre').classList.add('cache');
     dessiner();
   });
