@@ -223,7 +223,11 @@ function charger() {
   if (!nip || !zone) return;
   appeler({ action:'liste' }).then(function (d) {
     if (d.error) { if (d.code === 'nip') retourNip(d.error); return; }
-    produits = d.produits || [];
+    // 19 nov. — Keven : pas les prix multiples (« 6 pour 3 $ » = un prix, pas un produit) ni les sacs : on ne les compte pas.
+    produits = (d.produits || []).filter(function (p) {
+      var n = String(p.nom || p.name || '');
+      return !/\s—\s*\d+\s+pour\s/i.test(n) && !/^(sac\s|sac$|filet à provisions)/i.test(n);
+    });
     dessiner();
   });
 }
